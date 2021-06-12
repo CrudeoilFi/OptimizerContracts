@@ -1,3 +1,4 @@
+
 contract CrudeoilRefinery is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -273,23 +274,26 @@ function stakeCRUDE(uint256 _pid) external nonReentrant{
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
-        uint256 wantLockedTotal =
-            IStrategy(poolInfo[_pid].strat).wantLockedTotal();
         uint256 sharesTotal = IStrategy(poolInfo[_pid].strat).sharesTotal();
 
         require(user.shares > 0, "user.shares is 0");
         require(sharesTotal > 0, "sharesTotal is 0");
 
-        // Withdraw pending CRUDE
         uint256 pending =
             user.shares.mul(pool.accCRUDEPerShare).div(1e12).sub(
                 user.rewardDebt
             );
         if (pending > 0) {
-            deposit(CRUDEPid,pending);
+        updatePool(CRUDEPid);
+        PoolInfo storage pool1 = poolInfo[CRUDEPid];
+        UserInfo storage user1 = userInfo[CRUDEPid][msg.sender];
+        pool1.want.safeIncreaseAllowance(pool1.strat, pending);
+        uint256 sharesAdded =
+                IStrategy(poolInfo[CRUDEPid].strat).deposit(msg.sender, pending);
+            user1.shares = user1.shares.add(sharesAdded);
+        user1.rewardDebt = user1.shares.mul(pool1.accCRUDEPerShare).div(1e12);
+        emit Deposit(msg.sender, CRUDEPid, pending);
         }
-        user.rewardDebt = user.shares.mul(pool.accCRUDEPerShare).div(1e12);
-        emit Withdraw(msg.sender, _pid, 0);
 }
 
     function withdrawAll(uint256 _pid) external nonReentrant {
